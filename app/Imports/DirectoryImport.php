@@ -6,21 +6,49 @@ use App\Models\ImportingDirectory;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithStartRow;
+use Illuminate\Support\Facades\DB;
+
 
 class AllConstants{
-    public const START_ROW  = 4;
     public const COUNT_COLUMN  = 5;
+}
+
+/**
+ * Данные о министрах/зам. министра тк их отслеживать лучше вручную
+ */
+class DopDataNew {
+    private static $instance = null;
+    public $data = [];
+
+    private function __construct() {}
+
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new DopDataNew();
+        }
+        return self::$instance;
+    }
+
+    public function addPost($post) {
+        if ($post != '' && !in_array($post, $this->data)){array_push($this->data, $post);}
+    }
 }
 
 class DirectoryImport implements ToCollection, WithStartRow
 {
+    protected $startRow;
+
+    public function __construct($startRow)
+    {
+        $this->startRow = $startRow;
+    }
     /**
      * Summary of startRow
      * @return int
      */
     public function startRow(): int
     {
-        return AllConstants::START_ROW; // Номер строки, с которой начинается чтение данных
+        return  $this->startRow; // Номер строки, с которой начинается чтение данных
     }
 
     /**
@@ -47,14 +75,18 @@ class DirectoryImport implements ToCollection, WithStartRow
 
      /**
      * @param mixed $row
-     * @return bool
+     * @return bool[]
      */
     public function isOther($row){
-        if (preg_match('/\b(?:Помощники|Приемная|Профком)\b/ui', $row[0])){
-            return true;
+        if (preg_match('/\b(?:Приемная|Помощники)\b/ui', $row[0])){
+            return [true, trim($row[0])];
         }
-        return false;
+        if (preg_match('/\b(?:Профком)\b/ui', $row[0])){
+            return [true, ''];
+        }
+        return [false, ''];
     }
+
     /**
      * /Общие сервисы вроде как не переносятся, поэтому на них заканчиваю импорт
      * Если это изменится, то нужно менять регулярное выражение
@@ -72,7 +104,9 @@ class DirectoryImport implements ToCollection, WithStartRow
      * @param mixed $row
      * @return mixed
      */
-    public function checkIsEmpty($row){
+    public function checkIsEmpty($row, $dop){
+        $dataIn = DopDataNew::getInstance();
+        $dataIn->addPost($dop);
         for($i = 0; $i <= AllConstants::COUNT_COLUMN; $i++){
             if ($i == 0){
                 $row[$i] = empty($row[$i]) ? '-' : trim(preg_replace('/\s+/', ' ',strval($row[$i])));
@@ -87,14 +121,17 @@ class DirectoryImport implements ToCollection, WithStartRow
         return $row;
     }
 
+
     /**
-     * @param \Illuminate\Support\Collection $rows
+     * @param \Illuminate\Support\Collection $rows 
      * @return void
      */
     public function collection(Collection $rows)
     {
         $department = null;
         $division = null;
+        $onlyPriemnaya = '';
+
 
         foreach ($rows as $row) {
             if ($this->isDepartmentRow($row)) {
@@ -105,14 +142,16 @@ class DirectoryImport implements ToCollection, WithStartRow
                 $division = $row[0];
                 continue;
             }
-            else if ($this->isOther($row)){
+            else if ($this->isOther($row)[0]){
+                $division = $this->isOther($row)[1];
+                $onlyPriemnaya = preg_replace("/^(\w+\s)/", "", $division);
                 continue;
             }
             else if ($this->checkBreak($row)){
                 break;
-            }
+            } 
             else{
-                $row = $this->checkIsEmpty($row);
+                $row = $this->checkIsEmpty($row, $onlyPriemnaya);
                 if ($row[0] != '-'){
                     ImportingDirectory::create([
                         'FIO' => $row[0],
