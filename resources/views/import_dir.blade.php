@@ -21,7 +21,7 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 400px;
+            width: 500px;
             max-height: 80vh; /* Ограничение высоты контейнера */
             overflow-y: auto; /* Прокрутка по вертикали */
         }
@@ -63,6 +63,21 @@
             padding: 10px;
             border-radius: 4px;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
     </style>
 </head>
 <body>
@@ -100,6 +115,24 @@
                 @endforeach
             </ul>
         @endif
+
+        <h3>Дубликаты</h3>
+        @if(isset($dataDublicate) && count($dataDublicate) > 0)
+            <ul>
+                @foreach($dataDublicate as $item)
+                    <li>{{ $item }}</li>
+                @endforeach
+            </ul>
+        @endif
+    </div>
+    <div class="container">
+        <form action="/loading" method="post" enctype="multipart/form-data">
+            @csrf
+            <label for="date">Дата актуализации справочника: </label>
+            <input type="date" id="date" name="date"/>
+
+            <input type="submit" value="Загрузить данные в БД">
+        </form>
     </div>
 </body>
 </html>

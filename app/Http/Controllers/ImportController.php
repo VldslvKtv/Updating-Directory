@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers;
+
+use App\Exports\CookieData;
 use App\Exports\DopDataOld;
 use App\Imports\DirectoryImport;
 use App\Imports\DopDataNew;
@@ -18,13 +20,20 @@ class ImportController extends Controller
     /**
      * Манипуляции с новыми данными для справочника (sql + orm)
      * @param mixed $connection
-     * @return void
+     * @return array
      */
     public function sqlAll($connection){
         DB::connection($connection)->table('ImportingDirectory') // форматируем номер телефона
             ->update(['ExternalPhone' => DB::raw(" '(' + LEFT(ExternalPhone, 3) + ') ' + SUBSTRING(ExternalPhone, 4, 3) + '-' + RIGHT(ExternalPhone, 4) ")
             ]);
-        
+        $masDublicate = [];
+        $dublicate = DB::select('SELECT [FIO], COUNT(*) AS CountOfDuplicates -- ПОИСК ДУБЛИКАТОВ
+                        FROM [UVBA].[dbo].[ImportingDirectory]
+                        GROUP BY [FIO]
+                        HAVING COUNT(*) > 1');
+        foreach ($dublicate as $record) {
+            array_push($masDublicate, $record->FIO);
+            }
         $data = DB::select('EXEC GetUniqueRecords');
         
         // Удаление всех записей из таблицы ImportingDirectory
@@ -43,6 +52,7 @@ class ImportController extends Controller
                 $record->Room
             ]);
         }
+        return $masDublicate;
         
     }
 
@@ -58,7 +68,7 @@ class ImportController extends Controller
         Excel::import(new DirectoryImport($request->input('start')), $path);
 
         $connection = config('database.default'); // Получаем значение из .env файла
-        $this->sqlAll($connection);
+        $dataDublicate = $this->sqlAll($connection);
 
         $exportController = new ExportController();
 
@@ -68,12 +78,13 @@ class ImportController extends Controller
         $exportController->export($request->input('path'));
 
         $dataOld = DopDataOld::$data;
+        $export_records = session('exported_data',[]);
 
         $projectPath = base_path();
         $uploadsPath = $projectPath . '/storage/app/uploads/';
         File::cleanDirectory($uploadsPath);  // чтобы в проекте не оставалось этих файлов
 
         // return redirect()->back();
-        return view('import_dir', compact('dataNew', 'dataOld'));
+        return response()->view('import_dir', compact('dataNew', 'dataOld', 'export_records', 'dataDublicate'));
     }
 }

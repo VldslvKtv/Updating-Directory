@@ -17,7 +17,7 @@ class ExportController extends Controller
         ]);
 
         // Excel::download(new DirectoryExport, 'newDirectory.xlsx');
-        return Excel::store(new DirectoryExport, 'newDirectory.xlsx', 'new_path');  // в 'my_path' указать папку для сохранения таблицы
+        return Excel::store(new DirectoryExport, 'newDirectory.xlsx', 'new_path');   // в 'my_path' указать папку для сохранения таблицы
     }
 
     

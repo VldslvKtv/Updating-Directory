@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cookie;
 
 /**
  * Данные о министрах/зам. министра тк их отслеживать лучше вручную
@@ -88,6 +89,19 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
         }
         return $massivCommission;
     }
+
+    public function checkCommission($checkingPost){
+        $posts = ['Министр', 'Заместитель Министра'];
+        $found = false;
+
+        foreach ($posts as $post) {
+            if (stripos(trim($checkingPost), $post) !== false) {
+                $found = true;
+                break;
+            }
+        }
+        return $found;
+    }
     
 
     /**
@@ -96,6 +110,7 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
      */
     public function comparisonTable() {
         // Получаем данные из справочников
+        $dopData = new DopDataOld;
         $dataOld = DB::select('EXEC GetUniqueRecordsOld');
         $dataNew = DB::select('EXEC GetUniqueRecords');
 
@@ -105,19 +120,18 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
         $newRecords = [];
 
         $commission = $this->getCommission();
-        $dopData = new DopDataOld;
         foreach ($dataOld as $record) {
             $record->DepartmentMOName = ($record->DepartmentMOName == '. ') ? '' : $record->DepartmentMOName;
-            if (in_array($record->Post, ['Министр','Заместитель Министра']))
+            if ($this->checkCommission($record->Post))
                 {$dopData->addPost($record->FIO);}
             $oldRecords[$record->FIO] = (array)$record;
         }
-        Log::info('DopDataOld::$data', DopDataOld::$data);
+        // Log::info('DopDataOld::$data', DopDataOld::$data);
 
         foreach ($dataNew as $record) {
             $newRecords[$record->FIO] = (array)$record;
         }
-    
+        // Log::info('Старый справочник: ', $oldRecords);
         // Инициализируем массивы для результатов
         $added = [];
         $removed = [];
@@ -126,7 +140,10 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
     
         // Сравниваем записи
         foreach ($oldRecords as $fio => $oldRecord) {
-            if (!isset($newRecords[$fio])) {
+            if (($oldRecord['Division'] == 'Группа поддержки') || ($oldRecord['DepartmentMOName'] == '. Группа поддержки')){
+                continue;
+            }
+            else if (!isset($newRecords[$fio]) ) {
                 // Удаленная запись
                 $removed[] = $oldRecord;
             } else {
@@ -141,7 +158,7 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
                     foreach ($oldRecord as $key => $oldValue) {
                         $newValue = isset($newRecord[$key]) ? $newRecord[$key] : '';
                         // Проверяем условия для объединения значений
-                        if ($key != 'FIO' && !($key == 'Post' && in_array($oldRecord['FIO'], $commission))) {
+                        if ($key != 'FIO' && !($key == 'Post' && in_array($oldRecord['FIO'], $commission)) && (trim($oldValue) !== trim($newValue))) {
                             // Объединяем старое и новое значение через пробел
                             $changedRecord[$key] = trim('БЫЛО: ' . $oldValue . ' СТАЛО: ' . $newValue);
                         } else {
@@ -186,6 +203,9 @@ class DirectoryExport implements FromCollection, WithHeadings, WithEvents
     }
 
     // $result[] = array_merge([count($added), count($removed), count($unchanged), count($changed)]); //это проверка кол-ва записей
+    // Log::info('Данные для экспорта', $result);
+    session(['exported_data' => $result]);
+
     return collect($result);
     }
     

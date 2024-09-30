@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\LoadDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,3 +20,4 @@ use App\Http\Controllers\ImportController;
 // });
 Route::get('/', [ImportController::class, 'home']);
 Route::post('/upload', [ImportController::class, 'upload']);
+Route::post('/loading', [LoadDataController::class, 'loading']);

@@ -56,7 +56,7 @@ class DirectoryImport implements ToCollection, WithStartRow
      * @return bool
      */
     public function isDepartmentRow($row){
-        if (preg_match('/\bд[е]п[а]рт[а]м[е]нт\b/ui', $row[0])){
+        if (preg_match('/\b(?:\d+|департамент)\b/ui', $row[0])){
             return true;
         }
         return false;
@@ -78,10 +78,10 @@ class DirectoryImport implements ToCollection, WithStartRow
      * @return bool[]
      */
     public function isOther($row){
-        if (preg_match('/\b(?:Приемная|Помощники)\b/ui', $row[0])){
+        if (preg_match('/\b(?:Помощники)\b/ui', $row[0])){
             return [true, trim($row[0])];
         }
-        if (preg_match('/\b(?:Профком)\b/ui', $row[0])){
+        elseif (preg_match('/\b(?:Приемная|Профком)\b/ui', $row[0])){
             return [true, ''];
         }
         return [false, ''];
@@ -109,13 +109,13 @@ class DirectoryImport implements ToCollection, WithStartRow
         $dataIn->addPost($dop);
         for($i = 0; $i <= AllConstants::COUNT_COLUMN; $i++){
             if ($i == 0){
-                $row[$i] = empty($row[$i]) ? '-' : trim(preg_replace('/\s+/', ' ',strval($row[$i])));
+                $row[$i] = empty($row[$i]) ? '-' : trim(preg_replace('/\s+/', ' ', str_replace("\xC2\xA0", ' ', strval($row[$i]))));
             }
             else if ($i == 2){
                 $row[$i] = empty($row[$i]) ? null : sprintf('%s%s-%s', substr($row[$i], 0, 3), substr($row[$i], 3, 3), substr($row[$i], 6));
             }
             else{
-                $row[$i] = empty($row[$i]) ? null : strval($row[$i]);
+                $row[$i] = empty($row[$i]) ? null : trim(strval($row[$i]));
             }
         }
         return $row;
@@ -143,6 +143,7 @@ class DirectoryImport implements ToCollection, WithStartRow
                 continue;
             }
             else if ($this->isOther($row)[0]){
+                $department = null;
                 $division = $this->isOther($row)[1];
                 $onlyPriemnaya = preg_replace("/^(\w+\s)/", "", $division);
                 continue;
